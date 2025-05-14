@@ -81,10 +81,30 @@ objs = $(samples:.cc=)  $(samples:.cc=_static)
 cuobjs = $(cusamples:.cu=) vectorAdd.o
 build: $(objs) $(cuobjs)
 
+# Determine NVCC version
+NVCC_VERSION := $(shell $(NVCC) --version | grep "release" | sed 's/.*release //' | sed 's/,.*//')
+NVCC_MAJOR := $(shell echo $(NVCC_VERSION) | cut -d. -f1)
+NVCC_MINOR := $(shell echo $(NVCC_VERSION) | cut -d. -f2)
+
+# Set CUDA architectures based on NVCC version
+ifeq ($(shell expr $(NVCC_MAJOR) \> 12), 1)
 CUDA_ARCH = -gencode=arch=compute_75,code=sm_75 \
             -gencode=arch=compute_80,code=sm_80 \
             -gencode=arch=compute_86,code=sm_86 \
             -gencode=arch=compute_86,code=compute_86
+else
+CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
+            -gencode=arch=compute_61,code=sm_61 \
+            -gencode=arch=compute_61,code=sm_61 \
+            -gencode=arch=compute_61,code=sm_61 \
+            -gencode=arch=compute_62,code=sm_62 \
+            -gencode=arch=compute_70,code=sm_70 \
+            -gencode=arch=compute_72,code=sm_72 \
+            -gencode=arch=compute_75,code=sm_75 \
+            -gencode=arch=compute_80,code=sm_80 \
+            -gencode=arch=compute_86,code=sm_86 \
+            -gencode=arch=compute_80,code=compute_80
+endif
 
 vectorAdd.o : vectorAdd.cu
 	$(NVCC) $(INCLUDES) --cudadevrt static --cudart static \
