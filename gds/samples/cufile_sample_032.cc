@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
 	Prng prng(255);
 	const char *TEST_READWRITEFILE, *TEST_WRITEFILE;
 	// io stream associated with the I/O
-	cudaStream_t io_stream;
+	cudaStream_t io_stream = NULL;
 
         if(argc < 4) {
                 std::cerr << argv[0] << " <readfilepath> <writefilepath> <gpuid> "<< std::endl;

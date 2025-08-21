@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 	CUfileError_t status;
 	const char *TESTFILE;
 	CUfileDescr_t cf_descr;
-        CUfileHandle_t cf_handle;
+        CUfileHandle_t cf_handle = NULL;
 
 	if(argc < 3) {
                 std::cerr << argv[0] << " <filepath> <gpuid> "<< std::endl;

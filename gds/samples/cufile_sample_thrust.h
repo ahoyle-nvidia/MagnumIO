@@ -38,7 +38,7 @@ template <typename T>
 class cufile_thrust_vector 
 {
     public:
-        cufile_thrust_vector()
+        cufile_thrust_vector(int num_devices)
         {
             // Initialize
             CUfileError_t status;
@@ -46,12 +46,8 @@ class cufile_thrust_vector
             checkCudaErrors(cuInit(0));
             cuDeviceGet(&cuDevice, 0);
 
-            // Get number of devices
-            int NUM_DEVICES;
-            cudaGetDeviceCount(&NUM_DEVICES);
-
             // Get mapping and backing devices
-            for (int i=0; i<NUM_DEVICES; i++) {
+            for (int i=0; i<num_devices; i++) {
                 cuDeviceGet(&cuDevice, i);
                 mappingDevices.push_back(cuDevice);
                 backingDevices.push_back(getBackingDevices(cuDevice));
@@ -158,6 +154,23 @@ class cufile_thrust_vector
                 // Set the location for this chunk to this device
                 prop.location.id = residentDevices[idx];
 
+		CUdevice device;
+		checkCudaErrors(cuDeviceGet(&device, prop.location.id));	
+		// On some systems it is possible that cuMemCreate might fail if gpuDirectRDMACapable is set to true in the alloc_flags.
+		// The following check ensures that we only set this flag in case it is supported by system.
+		int gpuDirectRDMACapable = 0;
+		status = cuDeviceGetAttribute(
+				&gpuDirectRDMACapable,
+				CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED,
+				device);
+
+		if (status != CUDA_SUCCESS) {
+			printf("Couldn't fetch CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED attribute, error %d, disabling gpuDirectRDMACapable flag\n", status);
+			prop.allocFlags.gpuDirectRDMACapable = 0;
+		} else {
+			printf("Setting prop.allocFlags.gpuDirectRDMACapable flag%d\n", gpuDirectRDMACapable);
+			prop.allocFlags.gpuDirectRDMACapable = gpuDirectRDMACapable;
+		}
                 // Create the allocation as a pinned allocation on this device
                 CUmemGenericAllocationHandle allocationHandle;
                 status = cuMemCreate(&allocationHandle, stripeSize, &prop, 0);
@@ -357,7 +370,7 @@ class cufile_thrust_vector
         // Copy host vector to the device vector
         void operator= (thrust::host_vector<T> h_vec)
         {
-            checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)this->get_raw_pointer(), (const void *) thrust::raw_pointer_cast(&h_vec[0]), this->allocationSize));
+            checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)this->get_raw_pointer(), (const void *) thrust::raw_pointer_cast(&h_vec[0]), this->size));
         }
 
         // Assign value to the device vector
@@ -442,6 +455,7 @@ class cufile_thrust_vector
         size_t size;
         std::vector<CUdevice> mappingDevices;
         std::vector<std::vector<CUdevice>> backingDevices;
+        int num_devices;
 };
 
 __device__ long long int d_index = -1;
@@ -460,32 +474,29 @@ __global__ void thrust_concurrent_find_kernel(T* begin, T value, size_t numEleme
 // Peforms concurrent implementation of thrust::find() algorithm
 // Returns index if value is found, else returns -1
 template <typename T>
-int thrust_concurrent_find(thrust::device_ptr<T> begin, thrust::device_ptr<T> end, T value)
+int thrust_concurrent_find(thrust::device_ptr<T> begin, thrust::device_ptr<T> end, T value, int num_devices)
 {
-    int NUM_DEVICES;
-    cudaGetDeviceCount(&NUM_DEVICES);
+    size_t num_elements = (thrust::distance(begin, end))/num_devices;
 
-    size_t num_elements = (thrust::distance(begin, end))/NUM_DEVICES;
-
-    cudaStream_t streams[NUM_DEVICES];
-    for(int i=0; i<NUM_DEVICES; i++) {
+    cudaStream_t streams[num_devices];
+    for(int i=0; i<num_devices; i++) {
         checkCudaErrors(cudaSetDevice(i));
         checkCudaErrors(cudaStreamCreateWithFlags(&streams[i], cudaStreamNonBlocking));
     }
 
-    for (int i=0; i<NUM_DEVICES; i++) {
+    for (int i=0; i<num_devices; i++) {
         checkCudaErrors(cudaSetDevice(i));
         thrust_concurrent_find_kernel<T><<< 1, 1, 0, streams[i]>>>((T*) thrust::raw_pointer_cast(begin+i*num_elements), value, num_elements, i);
     }
 
-    for (int i = 0; i < NUM_DEVICES; i++) {
+    for (int i = 0; i < num_devices; i++) {
         checkCudaErrors(cudaSetDevice(i));
         checkCudaErrors(cudaStreamSynchronize(streams[i]));
         checkCudaErrors(cudaStreamDestroy(streams[i]));
     }
 
-    int h_index[NUM_DEVICES];
-    for (int i = 0; i < NUM_DEVICES; i++) {
+    int h_index[num_devices];
+    for (int i = 0; i < num_devices; i++) {
         checkCudaErrors(cudaSetDevice(i));
         cudaMemcpyFromSymbol(&h_index[i], d_index, sizeof(int));
         if (h_index[i] != -1) return h_index[i];

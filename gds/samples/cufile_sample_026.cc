@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -120,6 +120,7 @@ simpleMallocMultiDeviceMmapResize(CUdeviceptr dptr, size_t va_size, size_t *allo
          const std::vector<CUdevice> &residentDevices, const std::vector<CUdevice> &mappingDevices,
          size_t align)
 {
+    assert(allocationSize && "allocationSize must not be null");
 
     CUresult status = CUDA_SUCCESS;
     size_t min_granularity = 0;
@@ -188,9 +189,26 @@ simpleMallocMultiDeviceMmapResize(CUdeviceptr dptr, size_t va_size, size_t *allo
         // Set the location for this chunk to this device
         prop.location.id = residentDevices[idx];
 
+	CUdevice device = 0;
+	checkCudaErrors(cuDeviceGet(&device, prop.location.id));	
+	// On some systems it is possible that cuMemCreate might fail if gpuDirectRDMACapable is set to true in the alloc_flags.
+        // The following check ensures that we only set this flag in case it is supported by system.
+        int gpuDirectRDMACapable = 0;
+        status = cuDeviceGetAttribute(
+                        &gpuDirectRDMACapable,
+                        CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED,
+                        device);
+
+        if (status != CUDA_SUCCESS) {
+                printf("Couldn't fetch CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED attribute, error %d, disabling gpuDirectRDMACapable flag\n", status);
+                prop.allocFlags.gpuDirectRDMACapable = 0;
+        } else {
+                printf("Setting prop.allocFlags.gpuDirectRDMACapable flag%d\n", gpuDirectRDMACapable);
+                prop.allocFlags.gpuDirectRDMACapable = gpuDirectRDMACapable;
+        }
         printf("adding physical mem of size %ld to gpu: %ld\n", stripeSize, idx);
         // Create the allocation as a pinned allocation on this device
-        CUmemGenericAllocationHandle allocationHandle;
+        CUmemGenericAllocationHandle allocationHandle = 0;
         status = cuMemCreate(&allocationHandle, stripeSize, &prop, 0);
         if (status != CUDA_SUCCESS) {
             goto done;
@@ -224,9 +242,7 @@ simpleMallocMultiDeviceMmapResize(CUdeviceptr dptr, size_t va_size, size_t *allo
     }
 
     // Return the rounded up size to the caller for use in the free
-    if (allocationSize) {
-    	*allocationSize = size;
-    }
+    *allocationSize = size;
 
     {
         // Each accessDescriptor will describe the mapping requirement for a single device
@@ -344,8 +360,25 @@ simpleMallocMultiDeviceMmap(CUdeviceptr *dptr, size_t va_size, size_t *allocatio
         // Set the location for this chunk to this device
         prop.location.id = residentDevices[idx];
 
+	CUdevice device = 0;
+	checkCudaErrors(cuDeviceGet(&device, prop.location.id));	
+	// On some systems it is possible that cuMemCreate might fail if gpuDirectRDMACapable is set to true in the alloc_flags.
+        // The following check ensures that we only set this flag in case it is supported by system.
+        int gpuDirectRDMACapable = 0;
+        status = cuDeviceGetAttribute(
+                        &gpuDirectRDMACapable,
+                        CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED,
+                        device);
+
+        if (status != CUDA_SUCCESS) {
+                printf("Couldn't fetch CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED attribute, error %d, disabling gpuDirectRDMACapable flag\n", status);
+                prop.allocFlags.gpuDirectRDMACapable = 0;
+        } else {
+                printf("Setting prop.allocFlags.gpuDirectRDMACapable flag%d\n", gpuDirectRDMACapable);
+                prop.allocFlags.gpuDirectRDMACapable = gpuDirectRDMACapable;
+        }
         // Create the allocation as a pinned allocation on this device
-        CUmemGenericAllocationHandle allocationHandle;
+        CUmemGenericAllocationHandle allocationHandle = 0;
         status = cuMemCreate(&allocationHandle, stripeSize, &prop, 0);
         if (status != CUDA_SUCCESS) {
             goto done;
@@ -468,7 +501,7 @@ extern void vectorAdd(const float *A, const float *B, float *C,
 //collect all of the devices whose memory can be mapped from cuDevice.
 vector<CUdevice> getBackingDevices(CUdevice cuDevice)
 {
-    int num_devices;
+    int num_devices = 0;
 
     checkCudaErrors(cuDeviceGetCount(&num_devices));
 
@@ -510,10 +543,10 @@ int main(int argc, char **argv)
 {
     int fdA=-1, fdB=-1, ret;
     CUfileError_t status;
-    CUdevice cuDevice;
+    CUdevice cuDevice = 0;
     const char *TESTFILEA, *TESTFILEB;
     CUfileDescr_t cf_descr;
-    CUfileHandle_t cf_handle_A , cf_handle_B;
+    CUfileHandle_t cf_handle_A = NULL, cf_handle_B = NULL;
 
     printf("Vector Addition (Driver API)\n");
     int N = 28835840;
@@ -547,9 +580,11 @@ int main(int argc, char **argv)
     printf("total number of elements in each vector :%d \n", N);
 
     // Create context
+#if CUDA_VERSION >= 13000
+    checkCudaErrors(cuCtxCreate(&cuContext, NULL, 0, cuDevice));
+#else
     checkCudaErrors(cuCtxCreate(&cuContext, 0, cuDevice));
-
-
+#endif
     printf("size of each sysmem vector in bytes :%ld \n", size);
     // Allocate input vectors h_A and h_B in host memory
     h_A = (float *)malloc(size);
@@ -611,16 +646,6 @@ int main(int argc, char **argv)
     }
     fdA = ret;
 
-    // opens file B to write
-    ret = open(TESTFILEB, O_CREAT | O_RDWR | O_DIRECT, 0664);
-    if (ret < 0) {
-            std::cerr << "file open error:"
-                    << cuFileGetErrorString(errno) << std::endl;
-            exit(EXIT_FAILURE);
-    }
-    fdB = ret;
-
-
     memset((void *)&cf_descr, 0, sizeof(CUfileDescr_t));
     cf_descr.handle.fd = fdA;
     cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
@@ -658,7 +683,6 @@ int main(int argc, char **argv)
     // registers device memory
     status = cuFileBufRegister((void*)d_A, size, 0);
     if (status.err != CU_FILE_SUCCESS) {
-            ret = -1;
             std::cerr << "buffer register A failed:"
                     << cuFileGetErrorString(status) << std::endl;
             exit(EXIT_FAILURE);
@@ -668,7 +692,6 @@ int main(int argc, char **argv)
     // registers device memory
     status = cuFileBufRegister((void*)d_B, size, 0);
     if (status.err != CU_FILE_SUCCESS) {
-            ret = -1;
             std::cerr << "buffer register B failed:"
                     << cuFileGetErrorString(status) << std::endl;
             exit(EXIT_FAILURE);
@@ -787,7 +810,6 @@ int main(int argc, char **argv)
             exit(1);
     } else {
             std::cout << "read bytes to d_B :" << ret << std::endl;
-            ret = 0;
     }
 
     printf("GPU vector ADD for %d elements size:%ld \n", N, N*sizeof(float));

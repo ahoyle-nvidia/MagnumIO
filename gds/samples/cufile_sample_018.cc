@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -31,7 +31,7 @@
 #define GB(x) ((x)*1024*1024*1024L)
 #define MB(x) ((x)*1024*1024L)
 #define KB(x) ((x)*1024L)
-#define PAGE_SIZE 4096
+#define NVFS_BLOCK_SIZE 4096
 
 #define ALIGN_UP(x, align_to)   (((x) + ((align_to)-1)) & ~((align_to)-1))
 #define ALIGN_DOWN(x, a)        ((unsigned long)(x) & ~(((unsigned long)(a)) - 1))
@@ -59,8 +59,8 @@ static void *read_thread_fn(void *data)
 
 	fl.l_pid = getpid();
 	fl.l_type = F_RDLCK;
-	fl.l_start = ALIGN_DOWN(t->offset, PAGE_SIZE);
-	fl.l_len = ALIGN_UP(t->size, PAGE_SIZE);
+	fl.l_start = ALIGN_DOWN(t->offset, NVFS_BLOCK_SIZE);
+	fl.l_len = ALIGN_UP(t->size, NVFS_BLOCK_SIZE);
 	
 	// Acquire lock at 4K boundary
         cnt = 0;
@@ -123,8 +123,8 @@ static void *write_thread_fn(void *data)
 	fl.l_type = F_WRLCK;
 
 	// Acquire lock at 4K boundary
-	fl.l_start = ALIGN_DOWN(t->offset, PAGE_SIZE);
-	fl.l_len = ALIGN_UP(t->size, PAGE_SIZE);
+	fl.l_start = ALIGN_DOWN(t->offset, NVFS_BLOCK_SIZE);
+	fl.l_len = ALIGN_UP(t->size, NVFS_BLOCK_SIZE);
         cnt = 0;
         while (1) {
                 cnt++;
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
        	void *devPtr;
     	int fd;
         CUfileDescr_t cfr_descr;
-        CUfileHandle_t cfr_handle;
+        CUfileHandle_t cfr_handle = NULL;
         thread_data t[3];
 
 	if (argc < 2) {

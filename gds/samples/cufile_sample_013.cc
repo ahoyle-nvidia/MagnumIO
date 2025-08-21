@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -48,7 +48,7 @@ static void *thread_fn(void *data)
 	int fd  = t->fd; 
 	CUfileError_t status;
 	CUfileDescr_t cfr_descr;
-	CUfileHandle_t cfr_handle;
+	CUfileHandle_t cfr_handle = NULL;
 	int i, nr_ios;
 	loff_t offset = 0;
 

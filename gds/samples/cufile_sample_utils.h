@@ -73,7 +73,7 @@ struct Prng {
 // cuda driver error description
 //
 static inline const char *GetCuErrorString(CUresult curesult) {
-	const char *descp;
+	const char *descp = NULL;
 	if (cuGetErrorName(curesult, &descp) != CUDA_SUCCESS)
 		descp = "unknown cuda error";
 	return descp;
