@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -23,7 +23,7 @@ using namespace  std;
 
 int main(void) {
 	int posix_ret; // hold posix style returns
-	CUfileError_t status; // hold regular CUFileAPI based returns
+	CUfileError_t status = {CU_FILE_SUCCESS, CUDA_SUCCESS}; // hold regular CUFileAPI based returns
 
 	/* Need to load the symbols first. */
 	check_cudadrivercall(cuInit(0));

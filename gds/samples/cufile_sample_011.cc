@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
 	int gpu1, gpu2;
 	cfg_t cfg1, cfg2;
 	CUfileDescr_t cfr_descr;
-	CUfileHandle_t cfr_handle;
+	CUfileHandle_t cfr_handle = NULL;
 	CUfileError_t status;
 
 	if (argc < 4) {

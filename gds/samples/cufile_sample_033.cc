@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
         io_args_t args[MAX_BATCH_SIZE];
 	CUfileError_t status;
         CUfileDescr_t cf_descr;
-        CUfileHandle_t cf_rhandle;
-        CUfileHandle_t cf_whandle;
+        CUfileHandle_t cf_rhandle = NULL;
+        CUfileHandle_t cf_whandle = NULL;
 	unsigned char iDigest[SHA256_DIGEST_LENGTH], oDigest[SHA256_DIGEST_LENGTH];
 	Prng prng(255);
 	const char *TEST_READWRITEFILE, *TEST_WRITEFILE;
@@ -94,6 +94,7 @@ int main(int argc, char *argv[]) {
 	}
 
         memset(&args, 0, sizeof(args));
+        memset(io_stream, 0, sizeof(io_stream));
         // Allocate all the arguments in the heap.
 	hostPtr = malloc(total_size);
 	if (!hostPtr) {

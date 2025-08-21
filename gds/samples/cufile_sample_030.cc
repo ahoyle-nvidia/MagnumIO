@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -59,8 +59,8 @@ int submit_batch(int argc, char *argv[], bool write) {
 	unsigned int flags = 0;
        	CUstream stream;
 	CUfileError_t errorBatch;
-	CUfileBatchHandle_t batch_id;
-	unsigned nr;
+	CUfileBatchHandle_t batch_id = NULL;
+	unsigned nr = 0;
 	unsigned batch_size;
 	unsigned num_completed = 0;
         bool registerBuf = 0;
@@ -100,6 +100,7 @@ int submit_batch(int argc, char *argv[], bool write) {
 
 	nonDirFlag = atoi(argv[5]);
 	// opens a file to write
+	memset(cf_handle, 0, sizeof(cf_handle));
 	for(i = 0; i < batch_size; i++) {
 		if (nonDirFlag == 0) {
 			fd[i] = open(TESTFILE, O_CREAT | O_RDWR | O_DIRECT, 0664);
@@ -111,8 +112,7 @@ int submit_batch(int argc, char *argv[], bool write) {
 			}
 		}
 		if (fd[i] < 0) {
-			std::cerr << "file open error:"
-			<< cuFileGetErrorString(errno) << std::endl;
+			std::cerr << "file open error:" << cuFileGetErrorString(errno) << std::endl;
 			goto out1;
 		}
 	}
@@ -216,8 +216,14 @@ int submit_batch(int argc, char *argv[], bool write) {
 		std::cout << "Got events " << nr << std::endl;
 		num_completed += nr;
 		for(i = 0; i < nr; i++) {
-			uint64_t buf[MAX_BUFFER_SIZE];
+			ret = -1;
+			uint64_t* buf = new uint64_t[MAX_BUFFER_SIZE];
+			if (!buf) {
+				std::cerr << "Failed to allocate buffer of size " << MAX_BUFFER_SIZE << std::endl;
+				goto out4;
+			}
 			cudaMemcpy(buf, io_batch_params[i].u.batch.devPtr_base, io_batch_events[i].ret, cudaMemcpyDeviceToHost);
+			delete[] buf;
 		}
 	}
 	std::cout << "Batch IO Get status done got completetions for " << nr << " events" << std::endl;
@@ -269,7 +275,8 @@ out1:
 	// close file
 	for(i = 0; i < batch_size; i++) {
 		if (fd[i] > 0) {
-			cuFileHandleDeregister(cf_handle[i]);
+			if (cf_handle[i])
+				cuFileHandleDeregister(cf_handle[i]);
 			close(fd[i]);
 		}
 	}
@@ -278,9 +285,9 @@ out1:
 	status = cuFileDriverClose();
 	std::cout << "cuFileDriverClose Done" << std::endl;
 	if (status.err != CU_FILE_SUCCESS) {
-		ret = -1;
 		std::cerr << "cufile driver close failed:"
 			<< cuFileGetErrorString(status) << std::endl;
+		return -1;
 	}
 	ret = 0;
 	return ret;

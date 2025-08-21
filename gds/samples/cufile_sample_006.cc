@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 	unsigned char iDigest[SHA256_DIGEST_LENGTH], oDigest[SHA256_DIGEST_LENGTH];
         const char *TESTFILE, *TESTWRITEFILE;
         CUfileDescr_t cf_descr, cf_descr2;
-        CUfileHandle_t cf_handle, cf_handle2;
+        CUfileHandle_t cf_handle = NULL, cf_handle2 = NULL;
 
         if(argc < 4) {
                 std::cerr << argv[0] << " <readfilepath> <writefilepath> <gpuid> "<< std::endl;

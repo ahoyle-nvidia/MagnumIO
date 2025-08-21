@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -54,8 +54,8 @@ int main(int argc, char *argv[]) {
 	unsigned int flags = 0;
        	CUstream stream;
 	CUfileError_t errorBatch;
-	CUfileBatchHandle_t batch_id;
-	unsigned nr;
+	CUfileBatchHandle_t batch_id = NULL;
+	unsigned nr = 0;
 	unsigned batch_size;
 	unsigned num_completed = 0;
 
@@ -85,6 +85,7 @@ int main(int argc, char *argv[]) {
 	// opens a file to write
 	if (argc > 4)
 		nonDirFlag = atoi(argv[4]);
+	memset(cf_handle, 0, sizeof(cf_handle));
 	for(i = 0; i < batch_size; i++) {
 		if (nonDirFlag == 0) {
 			fd[i] = open(TESTFILE, O_CREAT | O_RDWR | O_DIRECT, 0664);
@@ -207,7 +208,8 @@ out1:
 	// close file
 	for(i = 0; i < batch_size; i++) {
 		if (fd[i] > 0) {
-			cuFileHandleDeregister(cf_handle[i]);
+			if (cf_handle[i])
+				cuFileHandleDeregister(cf_handle[i]);
 			close(fd[i]);
 		}
 	}

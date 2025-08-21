@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 	const size_t size = MAX_BUFFER_SIZE;
 	CUfileError_t status;
         CUfileDescr_t cf_descr;
-        CUfileHandle_t cf_handle;
+	CUfileHandle_t cf_handle = NULL;
 	const loff_t fileOff = 0;
 	unsigned char iDigest[SHA256_DIGEST_LENGTH], oDigest[SHA256_DIGEST_LENGTH];
 
@@ -142,7 +142,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	// device memory shasum with bufOffset
-	ret = SHASUM256_DEVICEMEM(reinterpret_cast<char *>(devPtr), size, iDigest, TESTBUFOFFSET);
+	memset(iDigest, 0, sizeof(iDigest));
+	ret = SHASUM256_DEVICEMEM((char *)devPtr, size, iDigest, TESTBUFOFFSET);
 	if(ret < 0) {
                 std::cerr << "SHASUM Device mem compute error" << std::endl;
                 goto out;

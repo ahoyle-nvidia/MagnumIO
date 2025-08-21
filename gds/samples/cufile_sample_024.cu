@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 
     size_t size = 0;
     int attributeVal = 0;
-
+    int visible_devices = 0;
     //  Get number of devices
     int NUM_DEVICES;
     cudaGetDeviceCount(&NUM_DEVICES);
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
     vector<vector<CUdevice>> backingDevices;
 
     // Check that the selected device supports virtual address management
-    for (int i=0; i<NUM_DEVICES; i++) {
+    for (int i=NUM_DEVICES-1; i>=0; i--) {
         cuDeviceGet(&cuDevice, i);
 
         // Check that the selected device supports virtual address management
@@ -141,8 +141,9 @@ int main(int argc, char **argv)
         mappingDevices.push_back(cuDevice);
     }
     backingDevices.push_back(getBackingDevices(cuDevice));
+    visible_devices = backingDevices[0].size();
 
-    N = N * backingDevices[0].size();
+    N = N * visible_devices;
     if (N > (MAX_TEST_LIMIT / sizeof (int))) {
 	    N = MAX_TEST_LIMIT / sizeof(int);
     }
@@ -151,8 +152,11 @@ int main(int argc, char **argv)
     printf("size of sysmem vector in bytes :%ld \n", size);
 
     // Create context
+#if CUDA_VERSION >= 13000
+    checkCudaErrors(cuCtxCreate(&cuContext, NULL, 0, cuDevice));
+#else
     checkCudaErrors(cuCtxCreate(&cuContext, 0, cuDevice));
-
+#endif
     // Allocate input host vectors h_vec in host memory using thrust
     thrust::host_vector<int> h_vec(N);
     printf("h_vec(%lx) size: %ld\n", (uint64_t)thrust::raw_pointer_cast(&h_vec[0]), size);
@@ -161,7 +165,7 @@ int main(int argc, char **argv)
     thrust::generate(h_vec.begin(), h_vec.end(), rand);   
  
     // Allocate vector in device memory
-    cufile_thrust_vector<int> dA;
+    cufile_thrust_vector<int> dA(visible_devices);
 
     // Get pointer to device vector
     thrust::device_ptr<int> dA_ptr = dA.cufile_thrust_device_pointer(N);
@@ -190,7 +194,7 @@ int main(int argc, char **argv)
 
     // Call concurrent implementation of thrust::find
     // Returns index if value is found, else returns -1
-    long long int index_found = thrust_concurrent_find<int> (dA_ptr, dA_ptr+N, h_vec[index]);
+    long long int index_found = thrust_concurrent_find(dA_ptr, dA_ptr+N, h_vec[index], visible_devices);
 
     if (index_found == -1) {
         printf("Value not found\n");

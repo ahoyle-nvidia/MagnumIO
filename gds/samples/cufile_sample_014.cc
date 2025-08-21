@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 	void *devPtr = NULL;
 	CUfileError_t status;
         CUfileDescr_t cf_descr;
-        CUfileHandle_t cf_handle;
+        CUfileHandle_t cf_handle = NULL;
 	ssize_t ret = -1, count = 0;
 	size_t size, total_bytes = 0, nbytes, bufOff = 0, fileOff = 0;
 	unsigned char iDigest[SHA256_DIGEST_LENGTH], oDigest[SHA256_DIGEST_LENGTH];

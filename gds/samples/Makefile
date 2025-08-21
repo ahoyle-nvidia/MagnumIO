@@ -1,6 +1,6 @@
 ################################################################################
 #
-# Copyright 1993-2019 NVIDIA Corporation.  All rights reserved.
+# Copyright 1993-2025 NVIDIA Corporation.  All rights reserved.
 #
 # NOTICE TO USER:
 #
@@ -63,10 +63,18 @@ LDFLAGS_STATIC     :=  $(CUFILE_LIB_STATIC) -L $(CUDA_PATH)/lib64/stubs -lcuda $
 INSTALL_GDSSAMPLES_PREFIX = /usr/local/gds/samples
 NVCC          :=$(CUDA_PATH)//bin/nvcc
 
+# Set IS_AARCH64 to 1 if either condition is true
+IS_AARCH64 := $(if $(or $(filter aarch64,$(ARCH)),$(filter 1,$(CONFIG_AARCH64))),1,0)
+
+ifeq ($(IS_AARCH64),1)
+	LDFLAGS += -lurcu-bp
+	LDFLAGS_STATIC += -lurcu-bp
+endif
+
 ################################################################################
-CC:=g++
-DOCKER_BUILD_REPO=gds_build:manylinux2014-mofed-5-1-cuda-11-1
-DOCKERFILE_BUILD_PATH=../../docker/manylinux2014-docker/Dockerfile-manylinux2014-cuda-11-1-MOFED-5-1
+CC:=/usr/bin/g++
+DOCKER_BUILD_REPO=gds_build:manylinux_2_28-cuda-12-2
+DOCKERFILE_BUILD_PATH=../../docker/manylinux_2_28-docker/Dockerfile-manylinux_2_28-cuda-12-2
 # Target rules
 all: build
 release_samples:
@@ -89,9 +97,12 @@ NVCC_MINOR := $(shell echo $(NVCC_VERSION) | cut -d. -f2)
 # Set CUDA architectures based on NVCC version
 ifeq ($(shell expr $(NVCC_MAJOR) \> 12), 1)
 CUDA_ARCH = -gencode=arch=compute_75,code=sm_75 \
-            -gencode=arch=compute_80,code=sm_80 \
-            -gencode=arch=compute_86,code=sm_86 \
-            -gencode=arch=compute_86,code=compute_86
+			-gencode=arch=compute_80,code=sm_80 \
+			-gencode=arch=compute_86,code=sm_86 \
+			-gencode=arch=compute_87,code=sm_87 \
+			-gencode=arch=compute_89,code=sm_89 \
+			-gencode=arch=compute_90,code=sm_90 \
+			-gencode=arch=compute_90,code=compute_90	
 else
 CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
             -gencode=arch=compute_61,code=sm_61 \
@@ -117,8 +128,13 @@ vectorAdd.o : vectorAdd.cu
 	$(CC)  $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS_STATIC)
 
 cufile_sample_024: cufile_sample_024.cu
+ifeq ($(IS_AARCH64),1)
+	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudadevrt static --cudart static $(CUDA_ARCH) $^ -o $@ $(CUFILE_LIB) -lcuda -lurcu-bp
+	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudart static $(CUDA_ARCH) $^ -o $@_static $(CUFILE_LIB_STATIC) -lcuda -lurcu-bp
+else
 	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudadevrt static --cudart static $(CUDA_ARCH) $^ -o $@ $(CUFILE_LIB) -lcuda
 	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudart static $(CUDA_ARCH) $^ -o $@_static $(CUFILE_LIB_STATIC) -lcuda
+endif
 
 install:
 	cp vectorAdd.cu cufile_sample_*.cu cufile_sample_*.cc cufile_sample_*.h Makefile README $(INSTALL_GDSSAMPLES_PREFIX)/

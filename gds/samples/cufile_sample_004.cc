@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 NVIDIA Corporation.  All rights reserved.
+ * Copyright 2020-2025 NVIDIA Corporation.  All rights reserved.
  *
  * Please refer to the NVIDIA end user license agreement (EULA) associated
  * with this source code for terms and conditions that govern your use of
@@ -62,12 +62,12 @@ using namespace std;
 int main(int argc, char *argv[]) {
 	int fd;
 	ssize_t ret = -1;
-	CUdevice cudev;
-	CUcontext cuCtx;
-	CUdeviceptr cudevPtr;
+	CUdevice cudev = 0;
+	CUcontext cuCtx = NULL;
+	CUdeviceptr cudevPtr = 0;
 	CUfileError_t status;
         CUfileDescr_t cf_descr;
-        CUfileHandle_t cf_handle;
+        CUfileHandle_t cf_handle = NULL;
 	const size_t size = MAX_BUF_SIZE;
 	void *hostPtr = NULL;
 	unsigned char iDigest[SHA256_DIGEST_LENGTH], oDigest[SHA256_DIGEST_LENGTH];
@@ -136,8 +136,11 @@ int main(int argc, char *argv[]) {
                 close(fd);
                 return -1;
         }
-
+#if CUDA_VERSION >= 13000
+	check_cudadrivercall(cuCtxCreate(&cuCtx, NULL, 0, cudev));
+#else
 	check_cudadrivercall(cuCtxCreate(&cuCtx, 0, cudev));
+#endif
 	check_cudadrivercall(cuMemAlloc(&cudevPtr, size));
 	check_cudadrivercall(cuMemsetD8(cudevPtr, 0x0, size));
 	check_cudadrivercall(cuStreamSynchronize(0));
